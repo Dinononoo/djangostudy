@@ -1,0 +1,389 @@
+{% extends 'base.html' %}
+
+{% block title %}IoT Dashboard - ระบบเซ็นเซอร์{% endblock %}
+
+{% block extra_css %}
+<style>
+    .sensor-card {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border-radius: 15px;
+        padding: 20px;
+        margin-bottom: 20px;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+    }
+    
+    .sensor-value {
+        font-size: 2.5rem;
+        font-weight: bold;
+        margin: 10px 0;
+    }
+    
+    .sensor-unit {
+        font-size: 1.2rem;
+        opacity: 0.8;
+    }
+    
+    .device-card {
+        background: white;
+        border-radius: 15px;
+        padding: 20px;
+        margin-bottom: 20px;
+        box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        border: 1px solid #e9ecef;
+    }
+    
+    .status-online {
+        color: #28a745;
+    }
+    
+    .status-offline {
+        color: #dc3545;
+    }
+    
+    .chart-container {
+        background: white;
+        border-radius: 15px;
+        padding: 20px;
+        margin-bottom: 20px;
+        box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h1 class="display-4 fw-bold text-primary">
+                    <i class="fas fa-microchip me-3"></i>IoT Dashboard
+                </h1>
+                <a href="{% url 'admin:sensors_device_add' %}" class="btn btn-primary">
+                    <i class="fas fa-plus me-2"></i>เพิ่มอุปกรณ์
+                </a>
+            </div>
+        </div>
+    </div>
+
+    {% if devices %}
+        <div class="row">
+            {% for device in devices %}
+                <div class="col-md-6 col-lg-4 mb-4">
+                    <div class="device-card">
+                        <div class="d-flex justify-content-between align-items-start mb-3">
+                            <h5 class="fw-bold text-primary">
+                                <i class="fas fa-microchip me-2"></i>{{ device.name }}
+                            </h5>
+                            <span class="badge bg-success">
+                                <i class="fas fa-circle me-1"></i>ออนไลน์
+                            </span>
+                        </div>
+                        
+                        <p class="text-muted mb-3">
+                            <i class="fas fa-map-marker-alt me-2"></i>{{ device.location|default:"ไม่ระบุตำแหน่ง" }}
+                        </p>
+                        
+                        {% if device.latest_sensor_data %}
+                            <div class="row latest-sensor-data" data-device-id="{{ device.id }}">
+                                {% for data in device.latest_sensor_data %}
+                                    <div class="col-4 mb-3">
+                                        <div class="text-center">
+                                            <small class="text-muted">{{ data.sensor_type.name }}</small>
+                                            <div class="sensor-value">{{ data.value|floatformat:1 }}</div>
+                                            <div class="sensor-unit">{{ data.sensor_type.unit }}</div>
+                                        </div>
+                                    </div>
+                                {% endfor %}
+                            </div>
+                        {% else %}
+                            <div class="text-center text-muted py-3">
+                                <i class="fas fa-exclamation-triangle fa-2x mb-2"></i>
+                                <p>ยังไม่มีข้อมูลเซ็นเซอร์</p>
+                            </div>
+                        {% endif %}
+                        
+                        <div class="d-grid gap-2">
+                            <a href="{% url 'sensors:device_detail' device.id %}" class="btn btn-outline-primary">
+                                <i class="fas fa-eye me-2"></i>ดูรายละเอียด
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+    {% else %}
+        <div class="row justify-content-center">
+            <div class="col-md-6">
+                <div class="text-center py-5">
+                    <i class="fas fa-microchip fa-4x text-muted mb-4"></i>
+                    <h3 class="text-muted">ยังไม่มีอุปกรณ์</h3>
+                    <p class="text-muted mb-4">เริ่มต้นด้วยการเพิ่มอุปกรณ์ใหม่</p>
+                    <a href="{% url 'admin:sensors_device_add' %}" class="btn btn-primary btn-lg">
+                        <i class="fas fa-plus me-2"></i>เพิ่มอุปกรณ์แรก
+                    </a>
+                </div>
+            </div>
+        </div>
+    {% endif %}
+</div>
+
+<!-- WebSocket Real-time Update Script -->
+<script>
+    const deviceSockets = new Map();
+    let reconnectAttempts = new Map();
+    const maxReconnectAttempts = 5;
+
+    function connectWebSocket(deviceId) {
+        // ปิดการเชื่อมต่อเก่าถ้ามี
+        const existingSocket = deviceSockets.get(deviceId);
+        if (existingSocket && existingSocket.readyState === WebSocket.OPEN) {
+            existingSocket.close();
+        }
+        
+        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const wsUrl = `${protocol}//${window.location.host}/ws/sensor-data/${deviceId}/`;
+        
+        console.log(`Connecting to WebSocket for device ${deviceId}:`, wsUrl);
+        
+        const socket = new WebSocket(wsUrl);
+        deviceSockets.set(deviceId, socket);
+        
+        socket.onopen = function(e) {
+            console.log(`WebSocket connected for device ${deviceId}`);
+            reconnectAttempts.set(deviceId, 0);
+            
+            // แสดงสถานะการเชื่อมต่อ (เฉพาะครั้งแรก)
+            if (reconnectAttempts.get(deviceId) === 0) {
+                showConnectionStatus('connected', `เชื่อมต่อ WebSocket สำเร็จ`);
+            }
+        };
+        
+        socket.onmessage = function(e) {
+            try {
+                const data = JSON.parse(e.data);
+                console.log(`Received data for device ${deviceId}:`, data);
+                
+                if (data.type === 'sensor_data') {
+                    updateSensorData(deviceId, data.data);
+                } else if (data.type === 'latest_data') {
+                    updateLatestData(deviceId, data.data);
+                }
+            } catch (error) {
+                console.error(`Error parsing WebSocket message for device ${deviceId}:`, error);
+            }
+        };
+        
+        socket.onclose = function(e) {
+            console.log(`WebSocket disconnected for device ${deviceId}, code: ${e.code}`);
+            
+            // แสดงสถานะการตัดการเชื่อมต่อเฉพาะเมื่อไม่ใช่การปิดปกติ
+            if (e.code !== 1000) {
+                showConnectionStatus('disconnected', `WebSocket ถูกตัดการเชื่อมต่อ`);
+            }
+            
+            // พยายามเชื่อมต่อใหม่
+            const attempts = reconnectAttempts.get(deviceId) || 0;
+            if (attempts < maxReconnectAttempts) {
+                reconnectAttempts.set(deviceId, attempts + 1);
+                console.log(`Attempting to reconnect device ${deviceId}... (${attempts + 1}/${maxReconnectAttempts})`);
+                setTimeout(() => connectWebSocket(deviceId), 3000);
+            } else {
+                console.log(`Max reconnection attempts reached for device ${deviceId}`);
+            }
+        };
+        
+        socket.onerror = function(e) {
+            console.error(`WebSocket error for device ${deviceId}:`, e);
+            showConnectionStatus('error', `เกิดข้อผิดพลาดในการเชื่อมต่อ WebSocket`);
+        };
+        
+        return socket;
+    }
+
+    function updateSensorData(deviceId, data) {
+        console.log(`Updating sensor data for device ${deviceId}:`, data);
+        
+        // หา container ของ device นั้น
+        const deviceContainer = document.querySelector(`[data-device-id="${deviceId}"]`);
+        if (!deviceContainer) {
+            console.log(`Device container not found for ${deviceId}`);
+            return;
+        }
+        
+        // หา sensor ที่มีชื่อเดียวกัน
+        const sensorElements = deviceContainer.querySelectorAll('.col-4');
+        let sensorFound = false;
+        
+        sensorElements.forEach(element => {
+            const sensorName = element.querySelector('small').textContent.trim();
+            if (sensorName === data.sensor_type) {
+                // อัปเดตข้อมูล sensor ที่มีอยู่
+                const valueElement = element.querySelector('.sensor-value');
+                const unitElement = element.querySelector('.sensor-unit');
+                
+                if (valueElement) {
+                    valueElement.textContent = data.value.toFixed(1);
+                    // เพิ่ม animation
+                    valueElement.style.transform = 'scale(1.1)';
+                    valueElement.style.transition = 'transform 0.3s ease';
+                    setTimeout(() => {
+                        valueElement.style.transform = 'scale(1)';
+                    }, 300);
+                }
+                
+                if (unitElement) {
+                    unitElement.textContent = data.unit;
+                }
+                
+                sensorFound = true;
+            }
+        });
+        
+        // ถ้าไม่เจอ sensor ที่มีอยู่ ให้สร้างใหม่
+        if (!sensorFound) {
+            const newSensorHtml = `
+                <div class="col-4 mb-3">
+                    <div class="text-center">
+                        <small class="text-muted">${data.sensor_type}</small>
+                        <div class="sensor-value">${data.value.toFixed(1)}</div>
+                        <div class="sensor-unit">${data.unit}</div>
+                    </div>
+                </div>
+            `;
+            deviceContainer.insertAdjacentHTML('beforeend', newSensorHtml);
+        }
+        
+        // แสดงการแจ้งเตือน
+        showNotification(`ข้อมูล ${data.sensor_type} อัปเดต: ${data.value} ${data.unit} (${deviceId})`);
+    }
+
+    function updateLatestData(deviceId, dataArray) {
+        console.log(`Updating latest data for device ${deviceId}:`, dataArray);
+        
+        const deviceContainer = document.querySelector(`[data-device-id="${deviceId}"]`);
+        if (!deviceContainer || dataArray.length === 0) {
+            return;
+        }
+        
+        let html = '';
+        dataArray.forEach(data => {
+            html += `
+                <div class="col-4 mb-3">
+                    <div class="text-center">
+                        <small class="text-muted">${data.sensor_type}</small>
+                        <div class="sensor-value">${data.value.toFixed(1)}</div>
+                        <div class="sensor-unit">${data.unit}</div>
+                    </div>
+                </div>
+            `;
+        });
+        deviceContainer.innerHTML = html;
+    }
+
+    function showConnectionStatus(status, message) {
+        // สร้างหรืออัปเดตสถานะการเชื่อมต่อ
+        let statusElement = document.getElementById('websocket-status');
+        if (!statusElement) {
+            statusElement = document.createElement('div');
+            statusElement.id = 'websocket-status';
+            statusElement.className = 'alert alert-info position-fixed';
+            statusElement.style.cssText = 'top: 20px; right: 20px; z-index: 9999; min-width: 300px;';
+            document.body.appendChild(statusElement);
+        }
+        
+        const statusClass = status === 'connected' ? 'alert-success' : 
+                           status === 'disconnected' ? 'alert-warning' : 'alert-danger';
+        
+        statusElement.className = `alert ${statusClass} position-fixed`;
+        statusElement.innerHTML = `
+            <i class="fas fa-${status === 'connected' ? 'check-circle' : 'exclamation-triangle'} me-2"></i>
+            ${message}
+            <button type="button" class="btn-close" onclick="this.parentElement.remove()"></button>
+        `;
+        
+        // ซ่อนสถานะหลังจาก 3 วินาที
+        if (status === 'connected') {
+            setTimeout(() => {
+                if (statusElement) statusElement.remove();
+            }, 3000);
+        }
+    }
+
+    function showNotification(message) {
+        // สร้างการแจ้งเตือนแบบ toast
+        const toast = document.createElement('div');
+        toast.className = 'toast position-fixed';
+        toast.style.cssText = 'top: 80px; right: 20px; z-index: 9999; min-width: 300px;';
+        toast.innerHTML = `
+            <div class="toast-header">
+                <i class="fas fa-bell text-primary me-2"></i>
+                <strong class="me-auto">ข้อมูลใหม่</strong>
+                <button type="button" class="btn-close" data-bs-dismiss="toast"></button>
+            </div>
+            <div class="toast-body">
+                ${message}
+            </div>
+        `;
+        
+        document.body.appendChild(toast);
+        
+        // แสดง toast
+        const bsToast = new bootstrap.Toast(toast);
+        bsToast.show();
+        
+        // ลบ toast หลังจาก 5 วินาที
+        setTimeout(() => {
+            if (toast.parentNode) {
+                toast.parentNode.removeChild(toast);
+            }
+        }, 5000);
+    }
+
+    // Heartbeat mechanism
+    function startHeartbeat() {
+        setInterval(() => {
+            deviceSockets.forEach((socket, deviceId) => {
+                if (socket.readyState === WebSocket.OPEN) {
+                    socket.send(JSON.stringify({ type: 'ping' }));
+                } else if (socket.readyState === WebSocket.CLOSED) {
+                    console.log(`Reconnecting closed socket for device ${deviceId}`);
+                    connectWebSocket(deviceId);
+                }
+            });
+        }, 30000); // ส่ง ping ทุก 30 วินาที
+    }
+
+    // เริ่มเชื่อมต่อ WebSocket เมื่อโหลดหน้า
+    document.addEventListener('DOMContentLoaded', function() {
+        console.log('Dashboard loaded, connecting to WebSockets...');
+        
+        // เชื่อมต่อ WebSocket สำหรับแต่ละอุปกรณ์
+        {% for device in devices %}
+            connectWebSocket('{{ device.id }}');
+        {% endfor %}
+        
+        // เริ่ม heartbeat
+        startHeartbeat();
+    });
+
+    // เชื่อมต่อใหม่เมื่อกลับมาที่หน้า
+    window.addEventListener('focus', function() {
+        console.log('Page focused, checking WebSocket connections...');
+        deviceSockets.forEach((socket, deviceId) => {
+            if (socket.readyState === WebSocket.CLOSED) {
+                console.log(`Reconnecting WebSocket for device ${deviceId}...`);
+                connectWebSocket(deviceId);
+            }
+        });
+    });
+
+    // ปิดการเชื่อมต่อ WebSocket เมื่อออกจากหน้า
+    window.addEventListener('beforeunload', function() {
+        deviceSockets.forEach((socket, deviceId) => {
+            console.log(`Closing WebSocket for device ${deviceId}`);
+            socket.close();
+        });
+    });
+</script>
+{% endblock %}

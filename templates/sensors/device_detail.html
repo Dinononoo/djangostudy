@@ -1,0 +1,380 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ device.name }} - รายละเอียดอุปกรณ์{% endblock %}
+
+{% block extra_css %}
+<style>
+    .device-header {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border-radius: 15px;
+        padding: 30px;
+        margin-bottom: 30px;
+    }
+    
+    .stat-card {
+        background: white;
+        border-radius: 10px;
+        padding: 20px;
+        margin-bottom: 20px;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    }
+    
+    .sensor-history {
+        max-height: 400px;
+        overflow-y: auto;
+    }
+    
+    .data-row {
+        padding: 10px;
+        border-bottom: 1px solid #e9ecef;
+    }
+    
+    .data-row:hover {
+        background: #f8f9fa;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Device Header -->
+    <div class="device-header">
+        <div class="row align-items-center">
+            <div class="col-md-8">
+                <h2 class="mb-2">
+                    <i class="fas fa-microchip me-2"></i>{{ device.name }}
+                </h2>
+                <p class="mb-0">
+                    <i class="fas fa-map-marker-alt me-2"></i>{{ device.location|default:"ไม่ระบุตำแหน่ง" }}
+                </p>
+            </div>
+            <div class="col-md-4 text-end">
+                <span class="badge bg-success fs-5">
+                    <i class="fas fa-circle me-2"></i>ออนไลน์
+                </span>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- Device Info -->
+        <div class="col-md-4">
+            <div class="stat-card">
+                <h5 class="text-primary mb-3">
+                    <i class="fas fa-info-circle me-2"></i>ข้อมูลอุปกรณ์
+                </h5>
+                <table class="table table-borderless">
+                    <tr>
+                        <td><strong>ประเภท:</strong></td>
+                        <td>{{ device.device_type }}</td>
+                    </tr>
+                    <tr>
+                        <td><strong>เจ้าของ:</strong></td>
+                        <td>{{ device.owner.email }}</td>
+                    </tr>
+                    <tr>
+                        <td><strong>สร้างเมื่อ:</strong></td>
+                        <td>{{ device.created_at|date:"d/m/Y H:i" }}</td>
+                    </tr>
+                    <tr>
+                        <td><strong>สถานะ:</strong></td>
+                        <td>
+                            {% if device.is_active %}
+                                <span class="badge bg-success">ใช้งาน</span>
+                            {% else %}
+                                <span class="badge bg-secondary">ปิดใช้งาน</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                </table>
+                
+                {% if device.description %}
+                <div class="mt-3">
+                    <strong>คำอธิบาย:</strong>
+                    <p class="text-muted">{{ device.description }}</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Latest Data -->
+        <div class="col-md-8">
+            <div class="stat-card">
+                <h5 class="text-primary mb-3">
+                    <i class="fas fa-chart-line me-2"></i>ข้อมูลล่าสุด
+                </h5>
+                
+                {% if latest_data %}
+                    <div class="row latest-sensor-data">
+                        {% for data in latest_data %}
+                            <div class="col-md-4 mb-3">
+                                <div class="text-center p-3" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border-radius: 10px;">
+                                    <small>{{ data.sensor_type.name }}</small>
+                                    <div style="font-size: 2rem; font-weight: bold;">
+                                        {{ data.value|floatformat:1 }}
+                                    </div>
+                                    <div>{{ data.sensor_type.unit }}</div>
+                                    <small class="text-white-50">{{ data.timestamp|date:"H:i:s" }}</small>
+                                </div>
+                            </div>
+                        {% endfor %}
+                    </div>
+                {% else %}
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle me-2"></i>
+                        ยังไม่มีข้อมูลเซ็นเซอร์
+                    </div>
+                {% endif %}
+            </div>
+
+            <!-- Data History -->
+            <div class="stat-card mt-3">
+                <h5 class="text-primary mb-3">
+                    <i class="fas fa-history me-2"></i>ประวัติข้อมูล (20 รายการล่าสุด)
+                </h5>
+                
+                {% if all_data %}
+                    <div class="table-responsive">
+                        <table class="table table-hover history-table">
+                            <thead>
+                                <tr>
+                                    <th>เวลา</th>
+                                    <th>ประเภทเซ็นเซอร์</th>
+                                    <th>ค่า</th>
+                                    <th>หน่วย</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for data in all_data %}
+                                    <tr>
+                                        <td>{{ data.timestamp|date:"d/m/Y H:i:s" }}</td>
+                                        <td>{{ data.sensor_type.name }}</td>
+                                        <td>{{ data.value|floatformat:2 }}</td>
+                                        <td>{{ data.sensor_type.unit }}</td>
+                                    </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                {% else %}
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle me-2"></i>
+                        ยังไม่มีประวัติข้อมูล
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Back Button -->
+    <div class="row mt-4">
+        <div class="col-12">
+            <a href="{% url 'sensors:dashboard' %}" class="btn btn-outline-primary">
+                <i class="fas fa-arrow-left me-2"></i>กลับไปหน้า Dashboard
+            </a>
+        </div>
+    </div>
+</div>
+
+<!-- WebSocket Real-time Update Script -->
+<script>
+    const deviceId = "{{ device.id }}";
+    let socket = null;
+    let reconnectAttempts = 0;
+    const maxReconnectAttempts = 5;
+
+    function connectWebSocket() {
+        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const wsUrl = `${protocol}//${window.location.host}/ws/sensor-data/${deviceId}/`;
+        
+        console.log('Connecting to WebSocket:', wsUrl);
+        
+        socket = new WebSocket(wsUrl);
+        
+        socket.onopen = function(e) {
+            console.log('WebSocket connected successfully');
+            reconnectAttempts = 0;
+            
+            // แสดงสถานะการเชื่อมต่อ
+            showConnectionStatus('connected', 'เชื่อมต่อ WebSocket สำเร็จ');
+        };
+        
+        socket.onmessage = function(e) {
+            const data = JSON.parse(e.data);
+            console.log('Received WebSocket data:', data);
+            
+            if (data.type === 'sensor_data') {
+                updateSensorData(data.data);
+            } else if (data.type === 'latest_data') {
+                updateLatestData(data.data);
+            }
+        };
+        
+        socket.onclose = function(e) {
+            console.log('WebSocket disconnected');
+            showConnectionStatus('disconnected', 'WebSocket ถูกตัดการเชื่อมต่อ');
+            
+            // พยายามเชื่อมต่อใหม่
+            if (reconnectAttempts < maxReconnectAttempts) {
+                reconnectAttempts++;
+                console.log(`Attempting to reconnect... (${reconnectAttempts}/${maxReconnectAttempts})`);
+                setTimeout(connectWebSocket, 3000);
+            }
+        };
+        
+        socket.onerror = function(e) {
+            console.error('WebSocket error:', e);
+            showConnectionStatus('error', 'เกิดข้อผิดพลาดในการเชื่อมต่อ WebSocket');
+        };
+    }
+
+    function updateSensorData(data) {
+        console.log('Updating sensor data:', data);
+        
+        // อัปเดตข้อมูลล่าสุด
+        const latestContainer = document.querySelector('.latest-sensor-data');
+        if (latestContainer) {
+            // สร้าง HTML ใหม่สำหรับข้อมูลล่าสุด
+            const sensorHtml = `
+                <div class="col-md-4 text-center mb-3">
+                    <small class="text-muted">${data.sensor_type}</small>
+                    <div class="sensor-value-large">${data.value.toFixed(1)}</div>
+                    <div class="sensor-unit-large">${data.unit}</div>
+                    <small class="text-muted">${new Date(data.timestamp).toLocaleTimeString()}</small>
+                </div>
+            `;
+            
+            // เพิ่มข้อมูลใหม่ที่ด้านบน
+            latestContainer.insertAdjacentHTML('afterbegin', sensorHtml);
+            
+            // จำกัดจำนวนข้อมูลแสดง (เก็บแค่ 3 รายการล่าสุด)
+            const sensors = latestContainer.querySelectorAll('.col-md-4');
+            if (sensors.length > 3) {
+                sensors[sensors.length - 1].remove();
+            }
+        }
+        
+        // อัปเดตตารางประวัติ
+        updateHistoryTable(data);
+        
+        // แสดงการแจ้งเตือน
+        showNotification(`ข้อมูล ${data.sensor_type} อัปเดต: ${data.value} ${data.unit}`);
+    }
+
+    function updateLatestData(dataArray) {
+        console.log('Updating latest data:', dataArray);
+        
+        const latestContainer = document.querySelector('.latest-sensor-data');
+        if (latestContainer && dataArray.length > 0) {
+            let html = '';
+            dataArray.forEach(data => {
+                html += `
+                    <div class="col-md-4 text-center mb-3">
+                        <small class="text-muted">${data.sensor_type}</small>
+                        <div class="sensor-value-large">${data.value.toFixed(1)}</div>
+                        <div class="sensor-unit-large">${data.unit}</div>
+                        <small class="text-muted">${new Date(data.timestamp).toLocaleTimeString()}</small>
+                    </div>
+                `;
+            });
+            latestContainer.innerHTML = html;
+        }
+    }
+
+    function updateHistoryTable(data) {
+        const historyTable = document.querySelector('.history-table tbody');
+        if (historyTable) {
+            const newRow = document.createElement('tr');
+            newRow.innerHTML = `
+                <td>${new Date(data.timestamp).toLocaleString()}</td>
+                <td>${data.sensor_type}</td>
+                <td>${data.value.toFixed(2)}</td>
+                <td>${data.unit}</td>
+            `;
+            
+            // เพิ่มแถวใหม่ที่ด้านบน
+            historyTable.insertBefore(newRow, historyTable.firstChild);
+            
+            // จำกัดจำนวนแถว (เก็บแค่ 20 แถวล่าสุด)
+            const rows = historyTable.querySelectorAll('tr');
+            if (rows.length > 20) {
+                rows[rows.length - 1].remove();
+            }
+        }
+    }
+
+    function showConnectionStatus(status, message) {
+        // สร้างหรืออัปเดตสถานะการเชื่อมต่อ
+        let statusElement = document.getElementById('websocket-status');
+        if (!statusElement) {
+            statusElement = document.createElement('div');
+            statusElement.id = 'websocket-status';
+            statusElement.className = 'alert alert-info position-fixed';
+            statusElement.style.cssText = 'top: 20px; right: 20px; z-index: 9999; min-width: 300px;';
+            document.body.appendChild(statusElement);
+        }
+        
+        const statusClass = status === 'connected' ? 'alert-success' : 
+                           status === 'disconnected' ? 'alert-warning' : 'alert-danger';
+        
+        statusElement.className = `alert ${statusClass} position-fixed`;
+        statusElement.innerHTML = `
+            <i class="fas fa-${status === 'connected' ? 'check-circle' : 'exclamation-triangle'} me-2"></i>
+            ${message}
+            <button type="button" class="btn-close" onclick="this.parentElement.remove()"></button>
+        `;
+        
+        // ซ่อนสถานะหลังจาก 3 วินาที
+        if (status === 'connected') {
+            setTimeout(() => {
+                if (statusElement) statusElement.remove();
+            }, 3000);
+        }
+    }
+
+    function showNotification(message) {
+        // สร้างการแจ้งเตือนแบบ toast
+        const toast = document.createElement('div');
+        toast.className = 'toast position-fixed';
+        toast.style.cssText = 'top: 80px; right: 20px; z-index: 9999; min-width: 300px;';
+        toast.innerHTML = `
+            <div class="toast-header">
+                <i class="fas fa-bell text-primary me-2"></i>
+                <strong class="me-auto">ข้อมูลใหม่</strong>
+                <button type="button" class="btn-close" data-bs-dismiss="toast"></button>
+            </div>
+            <div class="toast-body">
+                ${message}
+            </div>
+        `;
+        
+        document.body.appendChild(toast);
+        
+        // แสดง toast
+        const bsToast = new bootstrap.Toast(toast);
+        bsToast.show();
+        
+        // ลบ toast หลังจาก 5 วินาที
+        setTimeout(() => {
+            if (toast.parentNode) {
+                toast.parentNode.removeChild(toast);
+            }
+        }, 5000);
+    }
+
+    // เริ่มเชื่อมต่อ WebSocket เมื่อโหลดหน้า
+    document.addEventListener('DOMContentLoaded', function() {
+        console.log('Page loaded, connecting to WebSocket...');
+        connectWebSocket();
+    });
+
+    // เชื่อมต่อใหม่เมื่อกลับมาที่หน้า
+    window.addEventListener('focus', function() {
+        if (!socket || socket.readyState === WebSocket.CLOSED) {
+            console.log('Page focused, reconnecting WebSocket...');
+            connectWebSocket();
+        }
+    });
+</script>
+{% endblock %}

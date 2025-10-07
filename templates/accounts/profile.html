@@ -1,0 +1,94 @@
+{% extends 'base.html' %}
+
+{% block title %}โปรไฟล์ - IoT Django App{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-body p-5">
+                <div class="text-center mb-4">
+                    <div class="mb-3">
+                        {% if user.profile_picture %}
+                            <img src="{{ user.profile_picture.url }}" alt="Profile Picture" 
+                                 class="rounded-circle" width="120" height="120">
+                        {% else %}
+                            <div class="rounded-circle bg-primary d-inline-flex align-items-center justify-content-center" 
+                                 style="width: 120px; height: 120px;">
+                                <i class="fas fa-user fa-3x text-white"></i>
+                            </div>
+                        {% endif %}
+                    </div>
+                    <h2 class="fw-bold text-primary">{{ user.get_full_name|default:user.email }}</h2>
+                    <p class="text-muted">ข้อมูลโปรไฟล์ผู้ใช้</p>
+                </div>
+                
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <div class="card border-0 bg-light">
+                            <div class="card-body">
+                                <h5 class="card-title">
+                                    <i class="fas fa-envelope text-primary me-2"></i>อีเมล
+                                </h5>
+                                <p class="card-text">{{ user.email }}</p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="col-md-6 mb-3">
+                        <div class="card border-0 bg-light">
+                            <div class="card-body">
+                                <h5 class="card-title">
+                                    <i class="fas fa-phone text-success me-2"></i>เบอร์โทรศัพท์
+                                </h5>
+                                <p class="card-text">{{ user.phone_number|default:"ยังไม่ได้ระบุ" }}</p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="col-md-6 mb-3">
+                        <div class="card border-0 bg-light">
+                            <div class="card-body">
+                                <h5 class="card-title">
+                                    <i class="fas fa-calendar text-info me-2"></i>วันที่สมัคร
+                                </h5>
+                                <p class="card-text">{{ user.date_joined|date:"d/m/Y H:i" }}</p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="col-md-6 mb-3">
+                        <div class="card border-0 bg-light">
+                            <div class="card-body">
+                                <h5 class="card-title">
+                                    <i class="fas fa-shield-alt text-warning me-2"></i>สถานะการยืนยัน
+                                </h5>
+                                <p class="card-text">
+                                    {% if user.is_verified %}
+                                        <span class="badge bg-success">
+                                            <i class="fas fa-check me-1"></i>ยืนยันแล้ว
+                                        </span>
+                                    {% else %}
+                                        <span class="badge bg-warning">
+                                            <i class="fas fa-clock me-1"></i>รอยืนยัน
+                                        </span>
+                                    {% endif %}
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="text-center mt-4">
+                    <a href="{% url 'accounts:home' %}" class="btn btn-primary">
+                        <i class="fas fa-home me-2"></i>กลับหน้าหลัก
+                    </a>
+                    <a href="{% url 'account_logout' %}" class="btn btn-outline-danger ms-2">
+                        <i class="fas fa-sign-out-alt me-2"></i>ออกจากระบบ
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

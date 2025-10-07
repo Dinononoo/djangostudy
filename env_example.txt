@@ -1,0 +1,9 @@
+SECRET_KEY=your-secret-key-here
+DEBUG=True
+ALLOWED_HOSTS=localhost,127.0.0.1
+
+# Google OAuth Settings
+GOOGLE_OAUTH2_CLIENT_ID=your-google-client-id
+GOOGLE_OAUTH2_CLIENT_SECRET=your-google-client-secret
+SOCIAL_AUTH_GOOGLE_OAUTH2_KEY=your-google-client-id
+SOCIAL_AUTH_GOOGLE_OAUTH2_SECRET=your-google-client-secret
